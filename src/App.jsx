@@ -2,6 +2,13 @@ import { useState, useEffect } from "react";
 import "./index.css";
 import ExtraFeatures from "./ExtraFeatures";
 
+async function saveScore(userId, name, points) { 
+  await setDoc(
+    doc(db, "users", userId),
+    { name, points },
+    { merge: true }
+  );
+}
 function App() {
   const [user, setUser] = useState(null);
   const [nick, setNick] = useState("");
@@ -10,6 +17,18 @@ function App() {
   const [time, setTime] = useState(0);
   const [clicks, setClicks] = useState(0);
   const [users, setUsers] = useState([]);
+  const [globalUsers, setGlobalUsers] = useState([]);
+
+  useEffect(() => {
+  const q = query(collection(db, "users"), orderBy("points", "desc"));
+
+  const unsub = onSnapshot(q, (snapshot) => {
+    const leaderboard = snapshot.docs.map(doc => doc.data());
+    setUsers(leaderboard);
+  });
+
+  return () => unsub();
+}, []);
 
   // ===========================
   // Модальные окна
@@ -67,6 +86,17 @@ function App() {
     if (saved) setUser(saved);
     setUsers(list);
   }, []);
+
+  useEffect(() => {
+  const q = query(collection(db, "users"), orderBy("total", "desc"));
+
+  const unsub = onSnapshot(q, (snapshot) => {
+    const list = snapshot.docs.map(doc => doc.data());
+    setGlobalUsers(list);
+  });
+
+  return () => unsub();
+}, []);
 
   // Синхронизация рейтинга между вкладками
   useEffect(() => {
@@ -128,6 +158,7 @@ function App() {
     localStorage.setItem("nichegoUsers", JSON.stringify(list));
     setUsers(list);
     setUser(updated);
+    saveScore(user.nick, user.nick, updated.total);
     setStart(null);
     setTime(0);
   };
@@ -177,7 +208,12 @@ function App() {
   }
 
   const sorted = [...users].sort((a, b) => b.total - a.total);
-  const globalSorted = [...users].sort((a, b) => b.total - a.total).slice(0, 10);
+  <h2 style={{ marginTop: 40 }}>🌍 Глобальный рейтинг</h2>
+{globalUsers.map((u, i) => (
+  <div key={i} style={{ opacity: u.name === user.nick ? 1 : 0.7 }}>
+    {i+1}. {u.name} — {u.points}
+  </div>
+))}
 
   return (
     <div style={{ textAlign: "center", marginTop: 40, position: "relative" }}>
