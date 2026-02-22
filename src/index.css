@@ -1,0 +1,295 @@
+body {
+  margin: 0;
+  background: radial-gradient(circle, #111, #050505);
+  color: white;
+  font-family: monospace;
+}
+
+button {
+  background: #ff00aa;
+  border: none;
+  padding: 12px 22px;
+  color: white;
+  font-weight: bold;
+  margin: 8px;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: 0.2s;
+}
+
+button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px #ff00aa;
+}
+
+input {
+  padding: 10px;
+  margin: 8px;
+  border-radius: 8px;
+  border: none;
+}
+
+.shake {
+  animation: shake 0.4s;
+}
+
+@keyframes shake {
+  0% { transform: translate(0); }
+  25% { transform: translate(8px); }
+  50% { transform: translate(-8px); }
+  75% { transform: translate(8px); }
+  100% { transform: translate(0); }
+}
+.thought {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  background: #111;
+  padding: 16px 28px;
+  border-radius: 14px;
+  box-shadow: 0 0 25px #ff00aa;
+  opacity: 0;
+  animation: popThought 0.5s forwards;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+@keyframes popThought {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0px) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-10px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+  }
+}
+
+.modalThought {
+  position: fixed;
+  top: 20%;
+  transform: translateX(-50%) scale(0.8);
+  background: #111;
+  padding: 20px 32px;
+  border-radius: 16px;
+  box-shadow: 0 0 30px #00ffcc;
+  font-size: 18px;
+  font-weight: bold;
+  z-index: 9999;
+  opacity: 0;
+  animation: popModal 0.5s forwards;
+  pointer-events: none;
+}
+
+@keyframes popModal {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0px) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-5px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+  }
+}
+
+/* Модальные окна полезных мыслей */
+.modalThought {
+  position: center;
+  top: 20%;
+  transform: translateX(-50%) scale(0.8);
+  background: #111;
+  padding: 20px 32px;
+  border-radius: 16px;
+  box-shadow: 0 0 30px #00ffcc;
+  font-size: 18px;
+  font-weight: bold;
+  z-index: 9999;
+  opacity: 0;
+  animation: popModal 5s forwards;
+  pointer-events: none;
+}
+
+@keyframes popModal {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0px) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-5px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+  }
+}
+
+/* Модальное окно "Стать продуктивным" */
+.modalNope {
+  position: fixed;
+  top: 20%;               /* по вертикали центр */
+  left: 50%;              /* по горизонтали центр */
+  width: 50%;             /* половина ширины экрана */
+  height: 50%;            /* половина высоты экрана */
+  transform: translate(-50%, -50%) scale(0.8); /* центрируем точно */
+  background: #220000;
+  color: #ff4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  border-radius: 16px;
+  box-shadow: 0 0 40px #ff4444;
+  z-index: 10000;
+  opacity: 0;
+  animation: popModal 5s forwards;
+  pointer-events: none;
+}
+
+.editProfileBtn {
+  position: fixed;          /* фиксируем на экране */
+  top: 200px;                /* отступ сверху */
+  right: 200px;              /* сдвиг вправо от края экрана */
+  background: #ff4444;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 14px;
+  opacity: 0.7;             /* полупрозрачная */
+  cursor: pointer;
+  z-index: 9999;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.editProfileBtn:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+/* index.css */
+.app {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: #0f172a;
+  color: white;
+  font-family: sans-serif;
+}
+
+.profile {
+  text-align: center;
+}
+
+.avatar {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 10px;
+}
+
+.editor input {
+  margin: 6px 0;
+  padding: 6px;
+  border-radius: 8px;
+  border: none;
+}
+
+.editorBtns button {
+  margin: 5px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* 🔥 ВОТ ГЛАВНОЕ — ПОЛНОСТЬЮ НАСТРАИВАЕМАЯ КНОПКА */
+.editProfileBtn {
+  position: fixed;
+  top: 20px;        /* меняешь положение сверху */
+  right: 20px;      /* меняешь положение справа */
+
+  width: 440px;     /* меняешь ширину */
+  height: 400px;     /* меняешь высоту */
+
+  font-size: 14px;  /* размер текста */
+  border-radius: 12px;
+
+  background: #ef4444;
+  color: white;
+  border: none;
+  cursor: pointer;
+
+  opacity: 0.7;
+  transition: 0.25s;
+}
+
+.editProfileBtn:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+.editProfileWrapper {
+  position: absolute;
+  top: 20px;
+  right: -60px; 
+  transition: right 0.5s ease;
+  z-index: 10;
+}
+
+.editProfileWrapper:hover {
+  right: 20px;
+}
+
+.editProfileBtn {
+  background: linear-gradient(135deg, #ff00aa, #00ffcc);
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  font-size: 24px;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(255,0,170,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s, box-shadow 0.25s, opacity 0.25s;
+  opacity: 0.7;
+}
+
+.editProfileWrapper:hover .editProfileBtn {
+  opacity: 1;
+  transform: scale(1.2);
+  box-shadow: 0 0 25px rgba(0,255,204,0.8);
+}
+
+.editProfileBtn:active {
+  transform: scale(1);
+  box-shadow: 0 0 10px rgba(0,255,204,0.6);
+}
