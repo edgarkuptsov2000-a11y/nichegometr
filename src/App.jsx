@@ -7,7 +7,14 @@ import AvatarEditor from "./AvatarEditor";
 // ================== Настройка Supabase ==================
 const supabaseUrl = "https://jecdcdeuexnxcncphtzq.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplY2RjZGV1ZXhueGNuY3BodHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NDA1MDIsImV4cCI6MjA4NzUxNjUwMn0.qsF63HwE6GZQJMMtv-4qXWiZAhppeC2rB0bJCxWAL3g";
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: window.localStorage,
+  },
+});
 
 function App() {
   const [ratingLimit, setRatingLimit] = useState(10);
@@ -105,6 +112,15 @@ function App() {
 
     if (error) throw error;
 
+    const loadProfileFromSession = async (session) => {
+  if (!session?.user) return;
+
+  const profile = await getOrCreateProfile(session.user.id, session.user.email);
+
+  setUser(profile);
+  setFirstSetup(!profile.nick);
+};
+
     // Если профиля нет — создаём
     if (!data) {
       const { error: insErr } = await supabase.from("users").insert([{
@@ -130,55 +146,39 @@ function App() {
 
     return data;
   };
+  
 
   //=================================================
 
-  useEffect(() => {
-    const loadUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+useEffect(() => {
+  const loadUser = async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      await loadProfileFromSession(session);
+    } catch (err) {
+      console.log("SESSION LOAD ERROR", err);
+    }
+  };
 
-      if (!session?.user) return;
+  loadUser();
 
-      try {
-        const profile = await getOrCreateProfile(session.user.id, session.user.email);
-        setUser(profile);
-
-        if (!profile.nick) {
-          setFirstSetup(true);
-        }
-
-      } catch (err) {
-        console.log("SESSION LOAD ERROR", err);
+  const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    try {
+      if (!session?.user) {
+        setUser(null);
+        return;
       }
-    };
+      await loadProfileFromSession(session);
+    } catch (err) {
+      console.log("AUTH LISTENER ERROR", err);
+    }
+  });
 
-    loadUser();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!session?.user) {
-          setUser(null);
-          return;
-        }
-
-        try {
-          const profile = await getOrCreateProfile(session.user.id, session.user.email);
-          setUser(profile);
-
-          if (!profile.nick) {
-            setFirstSetup(true);
-          }
-
-        } catch (err) {
-          console.log("AUTH LISTENER ERROR", err);
-        }
-      }
-    );
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, []);
+  return () => {
+    listener.subscription.unsubscribe();
+  };
+}, []);
 
   //=====================================================
 
@@ -251,6 +251,40 @@ function App() {
   };
 
   // ================== Регистрация ==================
+const registerWithEmail = async () => {
+  setAuthError("");
+
+  if (!email || !password) {
+    setAuthError("Введите email и пароль");
+    return;
+  }
+
+  setAuthLoading(true);
+
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+
+    if (error) throw error;
+
+    // Если у тебя включено подтверждение почты в Supabase — пользователь будет создан,
+    // но сессии может не быть до подтверждения.
+    // Поэтому просто сообщаем и переключаем на вход.
+    alert("Аккаунт создан. Если включено подтверждение почты — подтверди email и зайди.");
+    setIsLogin(true);
+
+  } catch (e) {
+    console.log("REGISTER ERROR", e);
+    setAuthError(e?.message || "Ошибка регистрации");
+  } finally {
+    setAuthLoading(false);
+  }
+};
+
+//================ЛОГИН=========================
+
 const loginWithEmail = async () => {
   setAuthError("");
 
@@ -273,8 +307,9 @@ const loginWithEmail = async () => {
 
     console.log("LOGIN SUCCESS", data);
 
-    // НИЧЕГО больше не делаем
-    // onAuthStateChange сам загрузит профиль
+    // ВАЖНО: сразу руками берём текущую session и загружаем профиль
+    const { data: sess } = await supabase.auth.getSession();
+    await loadProfileFromSession(sess.session);
 
   } catch (e) {
     console.log("LOGIN ERROR FULL", e);
@@ -283,12 +318,6 @@ const loginWithEmail = async () => {
     setAuthLoading(false);
   }
 };
-
-  const handleAuthSubmit = async () => {
-    console.log("AUTH CLICK"); // проверка
-    if (isLogin) await loginWithEmail();
-    else await registerWithEmail();
-  };
 
   // ================== Сохранение прогресса ==================
   const stop = async () => {
