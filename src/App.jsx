@@ -304,17 +304,10 @@ const loginWithEmail = async () => {
   try {
     console.log("LOGIN START", email.trim());
 
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Запрос входа завис. На ПК его блокирует браузер/расширение/антивирус. Проверь Network.")), 15000)
-    );
-
-    const res = await Promise.race([
-      supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      }),
-      timeoutPromise
-    ]);
+    const res = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
     console.log("SIGN IN RESULT", res);
 
@@ -322,7 +315,6 @@ const loginWithEmail = async () => {
     if (!res.data?.user?.id) throw new Error("Нет user.id после входа");
 
     const profile = await getOrCreateProfile(res.data.user.id, res.data.user.email);
-    console.log("PROFILE", profile);
 
     setUser(profile);
     setFirstSetup(!profile.nick);
