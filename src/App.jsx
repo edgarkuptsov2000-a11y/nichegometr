@@ -251,46 +251,6 @@ function App() {
   };
 
   // ================== Регистрация ==================
-  const registerWithEmail = async () => {
-    if (!email || !password) return alert("Введите email и пароль");
-
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password
-      });
-
-      if (error) {
-        if (error.message.includes("already registered")) {
-          alert("Данный аккаунт уже существует");
-        } else {
-          throw error;
-        }
-        return;
-      }
-
-      const newUser = {
-        id: data.user.id,
-        email: data.user.email,
-        nick: "",
-        avatar: "",
-        total: 0
-      };
-
-      const { error: insertError } = await supabase.from("users").insert([newUser]);
-      if (insertError) throw insertError;
-
-      localStorage.setItem("nichegoUser", JSON.stringify(newUser));
-      setUser(newUser);
-      setFirstSetup(true);
-
-    } catch (e) {
-      console.log(e);
-      alert(e.message);
-    }
-  };
-
-  // ================== Логин ==================
 const loginWithEmail = async () => {
   setAuthError("");
 
@@ -304,20 +264,17 @@ const loginWithEmail = async () => {
   try {
     console.log("LOGIN START", email.trim());
 
-    const res = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
 
-    console.log("SIGN IN RESULT", res);
+    if (error) throw error;
 
-    if (res.error) throw res.error;
-    if (!res.data?.user?.id) throw new Error("Нет user.id после входа");
+    console.log("LOGIN SUCCESS", data);
 
-    const profile = await getOrCreateProfile(res.data.user.id, res.data.user.email);
-
-    setUser(profile);
-    setFirstSetup(!profile.nick);
+    // НИЧЕГО больше не делаем
+    // onAuthStateChange сам загрузит профиль
 
   } catch (e) {
     console.log("LOGIN ERROR FULL", e);
