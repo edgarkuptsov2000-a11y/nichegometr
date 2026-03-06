@@ -1,56 +1,27 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
-import ExtraFeatures from "./ExtraFeatures";
-import { createClient } from "@supabase/supabase-js";
-import AvatarEditor from "./AvatarEditor";
-
-// ================== Настройка Supabase ==================
-const supabaseUrl = "https://jecdcdeuexnxcncphtzq.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplY2RjZGV1ZXhueGNuY3BodHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NDA1MDIsImV4cCI6MjA4NzUxNjUwMn0.qsF63HwE6GZQJMMtv-4qXWiZAhppeC2rB0bJCxWAL3g";
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: window.localStorage,
-  },
-});
+import { supabase } from "./supabaseClient";
+import AvatarEditorModal from "./AvatarEditor";
 
 function App() {
   const [ratingLimit, setRatingLimit] = useState(10);
   const [user, setUser] = useState(null);
   const [globalSorted, setGlobalSorted] = useState([]);
+
   const [time, setTime] = useState(0);
   const [start, setStart] = useState(null);
-  const [clicks, setClicks] = useState(0);
-
-  const handleAvatarSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setSelectedImage(reader.result);
-      setShowCropper(true);
-    };
-    reader.readAsDataURL(file);
-  };
+  const [isRunning, setIsRunning] = useState(false);
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [showCropper, setShowCropper] = useState(false);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
   const [showCaptcha, setShowCaptcha] = useState(false);
-  const [captchaTimeout, setCaptchaTimeout] = useState(null);
-  const [isRunning, setIsRunning] = useState(true);
-
-  const fileInputRef = useRef();
+  const [captchaTimeoutId, setCaptchaTimeoutId] = useState(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLogin, setIsLogin] = useState(true);
-
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
 
@@ -62,6 +33,10 @@ function App() {
   const [modalThoughts, setModalThoughts] = useState([]);
   const [modalNope, setModalNope] = useState(false);
 
+  const [statsPeriod, setStatsPeriod] = useState("day");
+
+  const fileInputRef = useRef(null);
+
   const usefulThoughts = [
     "Помедитируй пару минут — мозг скажет спасибо.",
     "Сделай короткую растяжку — энергия прибавится.",
@@ -72,7 +47,7 @@ function App() {
     "Организуй рабочее место — меньше отвлекающих факторов.",
     "Подумай о маленькой победе — она мотивирует больше.",
     "Сделай дыхательное упражнение — сразу почувствуешь разницу.",
-    "Отдохни от экрана — глаза будут благодарны."
+    "Отдохни от экрана — глаза будут благодарны.",
   ];
 
   const colors = ["#00ffcc", "#ff00aa", "#ffaa00", "#00aaff", "#ff44ff"];
@@ -81,29 +56,164 @@ function App() {
     { time: 300, text: "🐌 Медленный старт" },
     { time: 1200, text: "🛋 Диванный философ" },
     { time: 3000, text: "🔥 Легенда безделья" },
-    { time: 9000, text: "💀 Профессиональный ничегонеделатель" }
+    { time: 9000, text: "💀 Профессиональный ничегонеделатель" },
   ];
 
-  // ================== Модалки ==================
+  const formatTime = (ms) => {
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return `${h.toString().padStart(2, "0")}:${m
+      .toString()
+      .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const getWeekKey = (date = new Date()) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${weekNo}`;
+  };
+
+  const getPeriodKeys = () => {
+    const now = new Date();
+    const day = now.toISOString().slice(0, 10);
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const year = String(now.getFullYear());
+    const week = getWeekKey(now);
+
+    return { day, week, month, year };
+  };
+
+  const emptyPeriodStats = (key) => ({
+    key,
+    total: 0,
+    sessions_count: 0,
+    longest_session: 0,
+    total_sessions_time: 0,
+    average_session: 0,
+  });
+
+  const getPeriodStorageKey = (userId) => `nichego_period_stats_${userId}`;
+
+  const readPeriodStats = (userId) => {
+    if (!userId) return null;
+
+    const raw = localStorage.getItem(getPeriodStorageKey(userId));
+    const keys = getPeriodKeys();
+
+    const fallback = {
+      day: emptyPeriodStats(keys.day),
+      week: emptyPeriodStats(keys.week),
+      month: emptyPeriodStats(keys.month),
+      year: emptyPeriodStats(keys.year),
+    };
+
+    if (!raw) return fallback;
+
+    try {
+      const parsed = JSON.parse(raw);
+
+      return {
+        day:
+          parsed.day?.key === keys.day ? parsed.day : emptyPeriodStats(keys.day),
+        week:
+          parsed.week?.key === keys.week ? parsed.week : emptyPeriodStats(keys.week),
+        month:
+          parsed.month?.key === keys.month
+            ? parsed.month
+            : emptyPeriodStats(keys.month),
+        year:
+          parsed.year?.key === keys.year ? parsed.year : emptyPeriodStats(keys.year),
+      };
+    } catch {
+      return fallback;
+    }
+  };
+
+  const writePeriodStats = (userId, stats) => {
+    if (!userId) return;
+    localStorage.setItem(getPeriodStorageKey(userId), JSON.stringify(stats));
+  };
+
+  const getCurrentPeriodStats = (userId) => {
+    const stats = readPeriodStats(userId);
+    if (!stats) return emptyPeriodStats(getPeriodKeys()[statsPeriod]);
+    return stats[statsPeriod];
+  };
+
+  const addSessionToPeriodStats = (userId, seconds) => {
+    if (!userId || seconds <= 0) return;
+
+    const stats = readPeriodStats(userId);
+    if (!stats) return;
+
+    ["day", "week", "month", "year"].forEach((period) => {
+      stats[period].total += seconds;
+      stats[period].sessions_count += 1;
+      stats[period].longest_session = Math.max(
+        stats[period].longest_session || 0,
+        seconds
+      );
+      stats[period].total_sessions_time += seconds;
+      stats[period].average_session = Math.floor(
+        stats[period].total_sessions_time / stats[period].sessions_count
+      );
+    });
+
+    writePeriodStats(userId, stats);
+  };
+
+  const currentPeriodStats = useMemo(() => {
+    if (!user?.id) return emptyPeriodStats(getPeriodKeys()[statsPeriod]);
+    return getCurrentPeriodStats(user.id);
+  }, [user, statsPeriod, time]);
+
+  const refreshPeriodStatsIfNeeded = (userId) => {
+    if (!userId) return;
+    const stats = readPeriodStats(userId);
+    if (stats) writePeriodStats(userId, stats);
+  };
+
+  const handleAvatarSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImage(reader.result);
+      setShowCropper(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const showModalThought = () => {
-    const randomText = usefulThoughts[Math.floor(Math.random() * usefulThoughts.length)];
+    const randomText =
+      usefulThoughts[Math.floor(Math.random() * usefulThoughts.length)];
     const id = Date.now();
-    const left = Math.floor(Math.random() * 60 + 20);
     const color = colors[Math.floor(Math.random() * colors.length)];
-    setModalThoughts(prev => [...prev, { id, text: randomText, left, color }]);
-    setTimeout(() => setModalThoughts(prev => prev.filter(t => t.id !== id)), 4000);
+
+    setModalThoughts((prev) => [...prev, { id, text: randomText, color }]);
+
+    setTimeout(() => {
+      setModalThoughts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
   };
 
   const showNopeModal = () => {
     setModalNope(true);
-    new Audio("/faah.mp3").play();
+    try {
+      new Audio("/faah.mp3").play();
+    } catch {
+      // ignore audio errors
+    }
     setTimeout(() => setModalNope(false), 4000);
   };
 
-  //======================================
-
-  const getOrCreateProfile = async (uid, email) => {
-    // maybeSingle НЕ падает, если строки нет
+  const getOrCreateProfile = async (uid, emailValue) => {
     const { data, error } = await supabase
       .from("users")
       .select("*")
@@ -112,80 +222,91 @@ function App() {
 
     if (error) throw error;
 
-    const loadProfileFromSession = async (session) => {
-  if (!session?.user) return;
-
-  const profile = await getOrCreateProfile(session.user.id, session.user.email);
-
-  setUser(profile);
-  setFirstSetup(!profile.nick);
-};
-
-    // Если профиля нет — создаём
     if (!data) {
-      const { error: insErr } = await supabase.from("users").insert([{
+      const newUser = {
         id: uid,
-        email: email || "",
+        email: emailValue || "",
         nick: "",
         avatar: "",
-        total: 0
-      }]);
+        total: 0,
+        sessions_count: 0,
+        longest_session: 0,
+        total_sessions_time: 0,
+        average_session: 0,
+      };
 
-      if (insErr) throw insErr;
+      const { error: insertError } = await supabase.from("users").insert([newUser]);
+      if (insertError) throw insertError;
 
-      // Забираем созданный профиль
-      const { data: created, error: selErr } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", uid)
-        .single();
-
-      if (selErr) throw selErr;
-      return created;
+      return newUser;
     }
 
-    return data;
+    return {
+      sessions_count: 0,
+      longest_session: 0,
+      total_sessions_time: 0,
+      average_session: 0,
+      ...data,
+    };
   };
-  
 
-  //=================================================
-
-useEffect(() => {
-  const loadUser = async () => {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      await loadProfileFromSession(session);
-    } catch (err) {
-      console.log("SESSION LOAD ERROR", err);
+  const loadProfileFromSession = async (session) => {
+    if (!session?.user) {
+      setUser(null);
+      return;
     }
+
+    const profile = await getOrCreateProfile(session.user.id, session.user.email);
+    setUser(profile);
+    setFirstSetup(!profile.nick);
+    refreshPeriodStatsIfNeeded(profile.id);
   };
-
-  loadUser();
-
-  const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    try {
-      if (!session?.user) {
-        setUser(null);
-        return;
-      }
-      await loadProfileFromSession(session);
-    } catch (err) {
-      console.log("AUTH LISTENER ERROR", err);
-    }
-  });
-
-  return () => {
-    listener.subscription.unsubscribe();
-  };
-}, []);
-
-  //=====================================================
 
   useEffect(() => {
-    // сохраняем старт таймера
-    if (start) localStorage.setItem("timerStart", String(start));
-    else localStorage.removeItem("timerStart");
+    let mounted = true;
+
+    const initAuth = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) throw error;
+        if (!mounted) return;
+
+        await loadProfileFromSession(session);
+      } catch (err) {
+        console.error("SESSION LOAD ERROR", err);
+      }
+    };
+
+    initAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+
+      try {
+        await loadProfileFromSession(session);
+      } catch (err) {
+        console.error("AUTH LISTENER ERROR", err);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (start) {
+      localStorage.setItem("timerStart", String(start));
+    } else {
+      localStorage.removeItem("timerStart");
+    }
   }, [start]);
 
   useEffect(() => {
@@ -197,10 +318,10 @@ useEffect(() => {
     const savedRunning = localStorage.getItem("timerRunning");
 
     if (savedStart) {
-      const s = Number(savedStart);
-      if (!Number.isNaN(s)) {
-        setStart(s);
-        setTime(Date.now() - s); // ✅ сразу выставляем время
+      const parsed = Number(savedStart);
+      if (!Number.isNaN(parsed)) {
+        setStart(parsed);
+        setTime(Date.now() - parsed);
       }
     }
 
@@ -209,7 +330,6 @@ useEffect(() => {
     }
   }, []);
 
-  // ================== Таймер ==================
   useEffect(() => {
     let interval;
 
@@ -224,114 +344,125 @@ useEffect(() => {
 
   useEffect(() => {
     const sec = Math.floor(time / 1000);
-    achievementsList.forEach(a => { if (sec === a.time) alert(a.text); });
+    achievementsList.forEach((a) => {
+      if (sec === a.time) alert(a.text);
+    });
   }, [time]);
 
   useEffect(() => {
     const troll = setInterval(() => {
-      if (!start) return;
+      if (!start || !isRunning) return;
       alert("⏳ Ты всё ещё ничего не делаешь. Отлично.");
     }, 4500000);
+
     return () => clearInterval(troll);
-  }, [start]);
+  }, [start, isRunning]);
 
-  const formatTime = (ms) => {
-    const total = Math.floor(ms / 1000);
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    const s = total % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  useEffect(() => {
+    if (!user?.id) return;
+    refreshPeriodStatsIfNeeded(user.id);
+
+    const midnightChecker = setInterval(() => {
+      refreshPeriodStatsIfNeeded(user.id);
+    }, 60000);
+
+    return () => clearInterval(midnightChecker);
+  }, [user]);
+
+  const registerWithEmail = async () => {
+    setAuthError("");
+
+    if (!email || !password) {
+      setAuthError("Введите email и пароль");
+      return;
+    }
+
+    setAuthLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) throw error;
+
+      alert(
+        "Аккаунт создан. Если в Supabase включено подтверждение почты — подтверди email и затем войди."
+      );
+      setIsLogin(true);
+    } catch (e) {
+      console.error("REGISTER ERROR", e);
+      setAuthError(e?.message || "Ошибка регистрации");
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  const openLogoutConfirm = () => setShowLogoutConfirm(true);
+  const loginWithEmail = async () => {
+    setAuthError("");
 
-  const confirmLogout = async () => {
-    setShowLogoutConfirm(false);
-    await logout(); // твоя существующая функция logout()
+    if (!email || !password) {
+      setAuthError("Введите email и пароль");
+      return;
+    }
+
+    setAuthLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) throw error;
+
+      const session = data?.session;
+      if (!session) {
+        throw new Error("Не удалось получить сессию после входа");
+      }
+
+      await loadProfileFromSession(session);
+    } catch (e) {
+      console.error("LOGIN ERROR", e);
+      setAuthError(e?.message || "Ошибка входа");
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  // ================== Регистрация ==================
-const registerWithEmail = async () => {
-  setAuthError("");
+  const handleAuthSubmit = async () => {
+    if (authLoading) return;
+    if (isLogin) await loginWithEmail();
+    else await registerWithEmail();
+  };
 
-  if (!email || !password) {
-    setAuthError("Введите email и пароль");
-    return;
-  }
+  const startTimer = () => {
+    if (start && isRunning) return;
 
-  setAuthLoading(true);
+    const newStart = start ? Date.now() - time : Date.now();
+    setStart(newStart);
+    setIsRunning(true);
+  };
 
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-
-    if (error) throw error;
-
-    // Если у тебя включено подтверждение почты в Supabase — пользователь будет создан,
-    // но сессии может не быть до подтверждения.
-    // Поэтому просто сообщаем и переключаем на вход.
-    alert("Аккаунт создан. Если включено подтверждение почты — подтверди email и зайди.");
-    setIsLogin(true);
-
-  } catch (e) {
-    console.log("REGISTER ERROR", e);
-    setAuthError(e?.message || "Ошибка регистрации");
-  } finally {
-    setAuthLoading(false);
-  }
-};
-
-//================ЛОГИН=========================
-
-const loginWithEmail = async () => {
-  setAuthError("");
-
-  if (!email || !password) {
-    setAuthError("Введите email и пароль");
-    return;
-  }
-
-  setAuthLoading(true);
-
-  try {
-    console.log("LOGIN START", email.trim());
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    if (error) throw error;
-
-    console.log("LOGIN SUCCESS", data);
-
-    // ВАЖНО: сразу руками берём текущую session и загружаем профиль
-    const { data: sess } = await supabase.auth.getSession();
-    await loadProfileFromSession(sess.session);
-
-  } catch (e) {
-    console.log("LOGIN ERROR FULL", e);
-    setAuthError(e?.message || "Ошибка входа");
-  } finally {
-    setAuthLoading(false);
-  }
-};
-
-  // ================== Сохранение прогресса ==================
-  const stop = async () => {
+  const stopTimerAndSave = async () => {
     if (!user) return;
 
     const sec = Math.floor(time / 1000);
-    if (sec <= 0) return;
+    setIsRunning(false);
+
+    if (sec <= 0) {
+      setStart(null);
+      setTime(0);
+      return;
+    }
 
     const updated = {
       ...user,
-      total: user.total + sec,
+      total: (user.total || 0) + sec,
       sessions_count: (user.sessions_count || 0) + 1,
       longest_session: Math.max(user.longest_session || 0, sec),
-      total_sessions_time: (user.total_sessions_time || 0) + sec
+      total_sessions_time: (user.total_sessions_time || 0) + sec,
     };
 
     updated.average_session = Math.floor(
@@ -342,53 +473,56 @@ const loginWithEmail = async () => {
     setStart(null);
     setTime(0);
 
+    addSessionToPeriodStats(user.id, sec);
+
     try {
-      await supabase
+      const { error } = await supabase
         .from("users")
         .update({
           total: updated.total,
           sessions_count: updated.sessions_count,
           longest_session: updated.longest_session,
           total_sessions_time: updated.total_sessions_time,
-          average_session: updated.average_session
+          average_session: updated.average_session,
         })
         .eq("id", updated.id);
+
+      if (error) throw error;
 
       fetchGlobalRating();
     } catch (err) {
       console.error(err);
+      alert("Не удалось сохранить прогресс");
     }
   };
 
-  //====================================================
   const triggerCaptcha = () => {
+    if (!start || !isRunning) return;
+
     setShowCaptcha(true);
 
-    const timeout = setTimeout(async () => {
+    const timeoutId = setTimeout(async () => {
       setShowCaptcha(false);
       setIsRunning(false);
-
-      await stop(); // ← ВОТ ЭТОГО ТОЖЕ НЕ БЫЛО
+      await stopTimerAndSave();
     }, 10000);
 
-    setCaptchaTimeout(timeout);
+    setCaptchaTimeoutId(timeoutId);
   };
 
   const handleCaptchaSuccess = () => {
-    clearTimeout(captchaTimeout);
+    clearTimeout(captchaTimeoutId);
     setShowCaptcha(false);
     setIsRunning(true);
   };
 
   const handleCaptchaFail = async () => {
-    clearTimeout(captchaTimeout);
+    clearTimeout(captchaTimeoutId);
     setShowCaptcha(false);
     setIsRunning(false);
-
-    await stop(); // ← ВОТ ЭТОГО НЕ ХВАТАЛО
+    await stopTimerAndSave();
   };
 
-  // ================== Редактирование профиля с проверкой уникальности ==================
   const saveProfile = async () => {
     const trimmedNick = newNick.trim();
 
@@ -398,87 +532,81 @@ const loginWithEmail = async () => {
     }
 
     try {
-      // Проверяем уникальность ника
-      const { data: existingNick } = await supabase
+      const { data: existingNick, error: nickError } = await supabase
         .from("users")
         .select("id")
         .eq("nick", trimmedNick)
         .neq("id", user.id)
-        .single();
+        .maybeSingle();
+
+      if (nickError) throw nickError;
 
       if (existingNick) {
         alert("Такой ничегошка уже есть(");
         return;
       }
 
-      const updatedUser = { ...user, nick: trimmedNick };
+      const updatedUser = {
+        ...user,
+        nick: trimmedNick,
+        avatar: newAvatar || user.avatar || "",
+      };
 
-      if (newAvatar) {
-        updatedUser.avatar = newAvatar;
-      }
-      await finalize(updatedUser);
+      const { data, error } = await supabase
+        .from("users")
+        .update({
+          nick: updatedUser.nick,
+          avatar: updatedUser.avatar,
+        })
+        .eq("id", updatedUser.id)
+        .select()
+        .single();
 
-      async function finalize(updated) {
-        const { data, error } = await supabase
-          .from("users")
-          .update({ nick: updated.nick, avatar: updated.avatar || "" })
-          .eq("id", updated.id)
-          .select()
-          .single();
+      if (error) throw error;
 
-        if (error) throw error;
+      setUser(data);
+      setNewNick("");
+      setNewAvatar(null);
+      setEditing(false);
+      setFirstSetup(false);
 
-        localStorage.setItem("nichegoUser", JSON.stringify(data));
-        setUser(data);
-
-        // Обновляем локально
-        setNewNick("");
-        setNewAvatar(null);
-        setEditing(false);
-        setFirstSetup(false);
-
-        alert("Профиль успешно обновлён!");
-        fetchGlobalRating();
-      }
-
+      alert("Профиль успешно обновлён!");
+      fetchGlobalRating();
     } catch (err) {
       console.error(err);
-      alert("Не удалось проверить ник");
+      alert(err?.message || "Не удалось сохранить профиль");
     }
   };
 
-  // ================== Выход ==================
   const logout = async () => {
     try {
       await supabase.auth.signOut();
       localStorage.removeItem("timerStart");
       localStorage.removeItem("timerRunning");
-      localStorage.removeItem("nichegoUser");
       setUser(null);
       setStart(null);
       setTime(0);
+      setIsRunning(false);
       setEditing(false);
+      setShowLogoutConfirm(false);
     } catch (err) {
       console.error(err);
       alert("Не удалось выйти из аккаунта");
     }
   };
 
-  //====================ТАЙМЕР========================
   useEffect(() => {
-    if (!user) return;
+    if (!user || !start || !isRunning) return;
 
-    const randomTime =
-      (15 + Math.random() * 5) * 60 * 1000; // 15-20 минут
+    const randomTime = (15 + Math.random() * 5) * 60 * 1000;
 
-    const interval = setInterval(() => {
+    const interval = setTimeout(() => {
       triggerCaptcha();
     }, randomTime);
 
-    return () => clearInterval(interval);
-  }, [user]);
+    return () => clearTimeout(interval);
+  }, [user, start, isRunning]);
 
-  // ================== Глобальный рейтинг ==================
   const fetchGlobalRating = async () => {
     const { data, error } = await supabase
       .from("users")
@@ -486,166 +614,149 @@ const loginWithEmail = async () => {
       .order("total", { ascending: false })
       .limit(ratingLimit);
 
-    if (!error && data) setGlobalSorted(data);
+    if (!error && data) {
+      setGlobalSorted(data);
+    }
   };
 
   useEffect(() => {
     fetchGlobalRating();
-
-    const channel = supabase
-      .channel("users-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "users" },
-        () => fetchGlobalRating()
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
   }, [ratingLimit]);
 
-  // ================== JSX ==================
   if (user && firstSetup) {
     return (
-      <div style={{ textAlign: "center", marginTop: 80 }}>
+      <div className="authPage">
         <h2>Добро пожаловать, ничегошка</h2>
+
         <input
           placeholder="Твой ник"
           value={newNick}
           onChange={(e) => setNewNick(e.target.value)}
-        /><br />
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleAvatarSelect}
         />
         <br />
-        <button onClick={() => saveProfile()}>Начать ничего не делать</button>
+
+        <input type="file" accept="image/*" onChange={handleAvatarSelect} />
+        <br />
+
+        <button onClick={saveProfile}>Начать ничего не делать</button>
+
         {showCropper && (
-          <AvatarEditor
-            image={selectedImage}
-            onSave={(croppedImage) => {
-              setNewAvatar(croppedImage);
-              setShowCropper(false);
-            }}
-            onCancel={() => setShowCropper(false)}
-          />
+          <div className="cropperOverlay" onClick={() => setShowCropper(false)}>
+            <div className="cropperModal" onClick={(e) => e.stopPropagation()}>
+              <AvatarEditorModal
+                image={selectedImage}
+                onSave={(croppedImage) => {
+                  setNewAvatar(croppedImage);
+                  setShowCropper(false);
+                }}
+                onCancel={() => setShowCropper(false)}
+              />
+            </div>
+          </div>
         )}
       </div>
     );
   }
 
-  if (!user) return (
-    <div style={{ textAlign: "center", marginTop: 100 }}>
-      <h1>Ничегометр</h1>
+  if (!user) {
+    return (
+      <div className="authPage">
+        <h1>Ничегометр</h1>
 
-      <input
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        autoComplete="email"
-      />
-      <br />
+        <input
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+        />
+        <br />
 
-      <input
-        type="password"
-        placeholder="Пароль"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoComplete={isLogin ? "current-password" : "new-password"}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleAuthSubmit();
-        }}
-      />
-      <br />
+        <input
+          type="password"
+          placeholder="Пароль"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete={isLogin ? "current-password" : "new-password"}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleAuthSubmit();
+          }}
+        />
+        <br />
 
-      <button
-        type="button"
-        onClick={handleAuthSubmit}
-        disabled={authLoading}
-        style={{ opacity: authLoading ? 0.7 : 1 }}
-      >
-        {authLoading ? "Входим..." : (isLogin ? "Войти" : "Зарегистрироваться")}
-      </button>
+        <button
+          type="button"
+          onClick={handleAuthSubmit}
+          disabled={authLoading}
+          style={{ opacity: authLoading ? 0.7 : 1 }}
+        >
+          {authLoading ? "Входим..." : isLogin ? "Войти" : "Зарегистрироваться"}
+        </button>
 
-      {authError && (
-        <div style={{ marginTop: 12, color: "#ff8080", fontWeight: 700 }}>
-          {authError}
-        </div>
-      )}
+        {authError && <div className="authError">{authError}</div>}
 
-      <p
-        style={{ cursor: "pointer", color: "blue", marginTop: 16 }}
-        onClick={() => {
-          setAuthError("");
-          setIsLogin(!isLogin);
-        }}
-      >
-        {isLogin ? "Создать новый аккаунт" : "Уже есть аккаунт? Войти"}
-      </p>
-    </div>
-  );
-
-  return (
-    <div style={{ padding: "40px 60px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: "60px"
-        }}
-      >
-        {/* ====== СТАТИСТИКА (STICKY) ====== */}
-        <div
-          style={{
-            width: "260px",
-            position: "sticky",
-            top: "50px"
+        <p
+          className="switchAuth"
+          onClick={() => {
+            setAuthError("");
+            setIsLogin(!isLogin);
           }}
         >
-          <div
-            style={{
-              padding: 20,
-              background: "#111",
-              borderRadius: 20,
-              boxShadow: "0 0 25px rgba(0,0,0,0.6)"
-            }}
-          >
+          {isLogin ? "Создать новый аккаунт" : "Уже есть аккаунт? Войти"}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pageWrap">
+      <div className="layout">
+        <div className="statsCardWrap">
+          <div className="statsCard">
             <h3>📊 Статистика</h3>
-            <p>Всего ничегонеделанья: {user.total} сек</p>
-            <p>Количество попыток за день: {user.sessions_count || 0}</p>
-            <p>Самое длинное ничегонеделанье: {user.longest_session || 0} сек</p>
-            <p>Среднее ничегонеделанье: {user.average_session || 0} сек</p>
+
+            <div className="statsTabs">
+              <button
+                className={statsPeriod === "day" ? "tabBtn activeTab" : "tabBtn"}
+                onClick={() => setStatsPeriod("day")}
+              >
+                День
+              </button>
+              <button
+                className={statsPeriod === "week" ? "tabBtn activeTab" : "tabBtn"}
+                onClick={() => setStatsPeriod("week")}
+              >
+                Неделя
+              </button>
+              <button
+                className={statsPeriod === "month" ? "tabBtn activeTab" : "tabBtn"}
+                onClick={() => setStatsPeriod("month")}
+              >
+                Месяц
+              </button>
+              <button
+                className={statsPeriod === "year" ? "tabBtn activeTab" : "tabBtn"}
+                onClick={() => setStatsPeriod("year")}
+              >
+                Год
+              </button>
+            </div>
+
+            <p>Всего ничегонеделанья: {user.total || 0} сек</p>
+            <p>Количество попыток: {currentPeriodStats.sessions_count || 0}</p>
+            <p>
+              Самое длинное ничегонеделанье:{" "}
+              {currentPeriodStats.longest_session || 0} сек
+            </p>
+            <p>Среднее ничегонеделанье: {currentPeriodStats.average_session || 0} сек</p>
+            <p>За период: {currentPeriodStats.total || 0} сек</p>
           </div>
         </div>
 
-        {/* ====== ОСНОВНОЙ КОНТЕНТ ====== */}
-        <div
-          style={{
-            flex: 1,
-            maxWidth: "700px",
-            textAlign: "center"
-          }}
-        >
-          {/* Аватар + ник */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "20px",
-              marginBottom: "20px"
-            }}
-          >
+        <div className="mainContent">
+          <div className="profileHeader">
             {editing && (
-              <div
-                className="cropperOverlay"
-                onClick={() => setEditing(false)}
-              >
-                <div
-                  className="editPanel"
-                  onClick={(e) => e.stopPropagation()}
-                >
+              <div className="cropperOverlay" onClick={() => setEditing(false)}>
+                <div className="editPanel" onClick={(e) => e.stopPropagation()}>
                   <h2 style={{ marginTop: 0 }}>Редактирование профиля</h2>
 
                   <input
@@ -689,19 +800,13 @@ const loginWithEmail = async () => {
 
             <img
               src={user.avatar || "/default-avatar.png"}
-              style={{
-                width: 120,
-                height: 120,
-                borderRadius: "50%",
-                objectFit: "cover",
-                boxShadow: "0 0 15px #ff00aa"
-              }}
+              className="avatarImg"
             />
 
             <div>
               <h1 style={{ margin: 0 }}>{user.nick || "Без ника"}</h1>
 
-              <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "10px" }}>
+              <div className="profileButtons">
                 <button
                   type="button"
                   onClick={() => {
@@ -713,44 +818,22 @@ const loginWithEmail = async () => {
                   ⚙️ Редактировать
                 </button>
 
-                <button onClick={openLogoutConfirm}>Выйти</button>
+                <button type="button" onClick={() => setShowLogoutConfirm(true)}>
+                  Выйти
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Таймер */}
-          <h1
-            style={{
-              fontSize: 80,
-              textShadow: "0 0 25px #ff00aa"
-            }}
-          >
-            {formatTime(time)}
-          </h1>
+          <h1 className="timerTitle">{formatTime(time)}</h1>
 
-          {/* Кнопки */}
           <div className="buttons-grid">
-            <button onClick={() => {
-              setIsRunning(true);
-              setStart(Date.now());
-            }}>
-              Начать ничего
-            </button>
-
-            <button onClick={stop}>
-              Я хочу заняться делами
-            </button>
-
-            <button onClick={showNopeModal}>
-              Стать продуктивным
-            </button>
-
-            <button onClick={showModalThought}>
-              Полезная мысль 💡
-            </button>
+            <button onClick={startTimer}>Начать ничего</button>
+            <button onClick={stopTimerAndSave}>Я хочу заняться делами</button>
+            <button onClick={showNopeModal}>Стать продуктивным</button>
+            <button onClick={showModalThought}>Полезная мысль 💡</button>
           </div>
 
-          {/* ====== РЕЙТИНГ ====== */}
           <h2 style={{ marginTop: 50 }}>🌍 Глобальный рейтинг</h2>
 
           <div className="rating-actions">
@@ -764,10 +847,13 @@ const loginWithEmail = async () => {
               <button onClick={() => setRatingLimit(10)}>Вернуть ТОП-10</button>
             )}
 
-            <button className="secondary" onClick={() => {
-              const index = globalSorted.findIndex(u => u.id === user.id);
-              if (index !== -1) alert(`Ты на ${index + 1} месте 🔥`);
-            }}>
+            <button
+              className="secondary"
+              onClick={() => {
+                const index = globalSorted.findIndex((u) => u.id === user.id);
+                if (index !== -1) alert(`Ты на ${index + 1} месте 🔥`);
+              }}
+            >
               Найти меня в рейтинге
             </button>
           </div>
@@ -781,26 +867,27 @@ const loginWithEmail = async () => {
 
               return (
                 <div
-                  key={i}
+                  key={u.id || i}
                   style={{
                     opacity: u.id === user.id ? 1 : 0.75,
                     fontWeight: u.id === user.id || i < 3 ? "bold" : "normal",
                     transform: u.id === user.id ? "scale(1.05)" : "scale(1)",
-                    color
+                    color,
+                    marginBottom: 6,
                   }}
                 >
                   {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`}{" "}
-                  {u.nick && u.nick.trim() !== "" ? u.nick : "Без ника"} — {u.total} сек
+                  {u.nick && u.nick.trim() !== "" ? u.nick : "Без ника"} —{" "}
+                  {u.total || 0} сек
                 </div>
               );
             })}
           </div>
 
-          {/* ====== КРОППЕР ====== */}
           {showCropper && (
             <div className="cropperOverlay" onClick={() => setShowCropper(false)}>
               <div className="cropperModal" onClick={(e) => e.stopPropagation()}>
-                <AvatarEditor
+                <AvatarEditorModal
                   image={selectedImage}
                   onSave={(croppedImage) => {
                     setNewAvatar(croppedImage);
@@ -812,14 +899,12 @@ const loginWithEmail = async () => {
             </div>
           )}
 
-          {/* ====== ВСПЛЫВАЮЩИЕ МЫСЛИ ====== */}
           {modalThoughts.map((t) => (
             <div key={t.id} className="modalThought" style={{ color: t.color }}>
               {t.text}
             </div>
           ))}
 
-          {/* ====== МОДАЛКА NOPE ====== */}
           {modalNope && (
             <div className="modalNope">
               Нет Нет Нет, вы нарушаете правила. <br />
@@ -827,13 +912,12 @@ const loginWithEmail = async () => {
             </div>
           )}
 
-          {/* ====== КАПЧА (ОДИН РАЗ!) ====== */}
           {showCaptcha && (
             <div className="cropperOverlay">
               <div className="cropperModal">
                 <h2>Ты всё ещё ничего не делаешь, да?</h2>
 
-                <div style={{ marginTop: 20, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                <div className="modalButtonsRow">
                   <button type="button" onClick={handleCaptchaSuccess}>
                     Конечно да
                   </button>
@@ -843,26 +927,35 @@ const loginWithEmail = async () => {
                 </div>
 
                 <p style={{ marginTop: 15, opacity: 0.7 }}>
-                  Если не ответишь 60 секунд — таймер остановится
+                  Если не ответишь 10 секунд — таймер остановится
                 </p>
               </div>
             </div>
           )}
 
-          {/* ====== ВЫХОД (ОТДЕЛЬНО, НЕ ВНУТРИ КАПЧИ) ====== */}
           {showLogoutConfirm && (
-            <div className="cropperOverlay" onClick={() => setShowLogoutConfirm(false)}>
+            <div
+              className="cropperOverlay"
+              onClick={() => setShowLogoutConfirm(false)}
+            >
               <div className="cropperModal" onClick={(e) => e.stopPropagation()}>
                 <h2 style={{ marginTop: 0 }}>Ты точно хочешь выйти?</h2>
 
-                <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 18, flexWrap: "wrap" }}>
-                  <button type="button" onClick={confirmLogout}>Да</button>
-                  <button type="button" onClick={() => setShowLogoutConfirm(false)}>Нет</button>
+                <div className="modalButtonsRow">
+                  <button type="button" onClick={logout}>
+                    Да
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setShowLogoutConfirm(false)}
+                  >
+                    Нет
+                  </button>
                 </div>
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>

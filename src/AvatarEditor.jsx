@@ -1,49 +1,47 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import AvatarEditor from "react-avatar-editor";
 
-export default function AvatarEditorModal({
-  image,
-  onSave,
-  onCancel,
-}) {
+export default function AvatarEditorModal({ image, onSave, onCancel }) {
   const editorRef = useRef(null);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(1.2);
 
   const handleSave = () => {
     if (!editorRef.current) return;
 
     const canvas = editorRef.current.getImageScaledToCanvas();
-    const dataUrl = canvas.toDataURL();
-
+    const dataUrl = canvas.toDataURL("image/png");
     onSave(dataUrl);
   };
 
   return (
-    <div className="modal">
-      <div className="modal-content">
-        <AvatarEditor
-          ref={editorRef}
-          image={image}
-          width={200}
-          height={200}
-          border={50}
-          borderRadius={100}
-          scale={scale}
-        />
+    <div>
+      <AvatarEditor
+        ref={editorRef}
+        image={image}
+        width={220}
+        height={220}
+        border={30}
+        borderRadius={110}
+        scale={scale}
+      />
 
+      <div style={{ marginTop: 15 }}>
         <input
           type="range"
           min="1"
           max="3"
           step="0.1"
           value={scale}
-          onChange={(e) => setScale(parseFloat(e.target.value))}
+          onChange={(e) => setScale(Number(e.target.value))}
+          style={{ width: "100%" }}
         />
+      </div>
 
-        <div>
-          <button onClick={handleSave}>Сохранить</button>
-          <button onClick={onCancel}>Отмена</button>
-        </div>
+      <div className="modalButtonsRow" style={{ marginTop: 16 }}>
+        <button onClick={handleSave}>Сохранить</button>
+        <button className="secondary" onClick={onCancel}>
+          Отмена
+        </button>
       </div>
     </div>
   );

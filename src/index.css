@@ -1,4 +1,3 @@
-/* ================== БАЗА ================== */
 body {
   margin: 0;
   min-height: 100vh;
@@ -7,121 +6,241 @@ body {
   font-family: sans-serif;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 #root {
   min-height: 100vh;
 }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  max-width: 900px;
+.pageWrap {
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.layout {
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
-  background: #0f172a;
-  color: white;
+  display: flex;
+  align-items: flex-start;
+  gap: 60px;
 }
 
-.appContainer {
-  padding-left: max(16px, env(safe-area-inset-left));
-  padding-right: max(16px, env(safe-area-inset-right));
-  padding-bottom: max(40px, env(safe-area-inset-bottom));
+.authPage {
+  text-align: center;
+  margin-top: 100px;
+  padding: 20px;
 }
 
-/* ================== КНОПКИ ================== */
-/* ===== БАЗОВАЯ КНОПКА ===== */
+.mainContent {
+  flex: 1;
+  max-width: 700px;
+  text-align: center;
+}
+
+.statsCardWrap {
+  width: 260px;
+  position: sticky;
+  top: 50px;
+}
+
+.statsCard {
+  padding: 20px;
+  background: #111;
+  border-radius: 20px;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
+}
+
+.statsTabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: 14px 0 16px;
+}
+
+.tabBtn {
+  min-width: auto;
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  font-size: 13px;
+  background: #1e293b;
+}
+
+.activeTab {
+  background: linear-gradient(135deg, #ff00aa, #ff00aa);
+}
 
 button {
   height: 50px;
   padding: 0 18px;
-
   border-radius: 16px;
   border: none;
-
   font-size: 15px;
   font-weight: 700;
-
   cursor: pointer;
-
   display: inline-flex;
   align-items: center;
   justify-content: center;
-
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-
   background: linear-gradient(135deg, #ff00aa, #ff00aa);
   color: white;
-
-  box-shadow: 0 8px 18px rgba(0,0,0,0.35);
-
-  min-width: 200px;     /* одинаковая “масса” на ПК */
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  min-width: 200px;
   max-width: 320px;
 }
-button:hover { transform: translateY(-2px); }
-button:active { transform: scale(0.98); }
 
-/* ================== INPUT ================== */
+button:hover {
+  transform: translateY(-2px);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button.secondary {
+  background: #1e293b;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+}
+
 input {
-  padding: 10px;
+  padding: 10px 12px;
   margin: 8px;
   border-radius: 8px;
   border: none;
+  min-width: 260px;
 }
 
-/* ================== АНИМАЦИИ ================== */
-.shake {
-  animation: shake 0.4s;
+.authError {
+  margin-top: 12px;
+  color: #ff8080;
+  font-weight: 700;
 }
 
-@keyframes shake {
-  0% { transform: translateX(0); }
-  25% { transform: translateX(8px); }
-  50% { transform: translateX(-8px); }
-  75% { transform: translateX(8px); }
-  100% { transform: translateX(0); }
+.switchAuth {
+  cursor: pointer;
+  color: #3b82f6;
+  margin-top: 16px;
 }
 
-@keyframes fadeUp {
-  0% { opacity: 0; transform: translateY(20px); }
-  20% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-20px); }
+.profileHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
-@keyframes neonPulse {
-  from {
-    text-shadow: 0 0 5px #ff00aa, 0 0 15px #ff00aa, 0 0 25px #ff00aa;
-  }
-  to {
-    text-shadow: 0 0 15px #ff00aa, 0 0 30px #ff00aa, 0 0 60px #ff00aa;
-  }
+.profileButtons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
 
-/* ================== THOUGHT POPUP ================== */
-.thought,
+.avatarImg {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 15px #ff00aa;
+}
+
+.timerTitle {
+  font-size: 80px;
+  text-shadow: 0 0 25px #ff00aa;
+}
+
+.buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 600px;
+  margin: 22px auto 0;
+  justify-items: center;
+}
+
+.rating-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.rating-actions button {
+  min-width: 220px;
+}
+
+.cropperOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.cropperModal {
+  background: #0f172a;
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 0 40px rgba(255, 0, 170, 0.4);
+  max-width: 430px;
+  width: 90%;
+  text-align: center;
+}
+
+.editPanel {
+  background: #0f172a;
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 0 40px rgba(255, 0, 170, 0.4);
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.editInput {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  font-size: 16px;
+  min-width: 0;
+  margin: 0;
+}
+
+.editActions,
+.modalButtonsRow {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 .modalThought {
   position: fixed;
+  top: 20%;
   left: 50%;
   transform: translateX(-50%);
   background: #111;
   border-radius: 14px;
   pointer-events: none;
-}
-
-.thought {
-  bottom: 60px;
-  padding: 16px 28px;
-  box-shadow: 0 0 25px #ff00aa;
-  font-size: 14px;
-  animation: fadeUp 3s forwards;
-}
-
-.modalThought {
-  top: 20%;
   padding: 20px 32px;
   font-size: 18px;
   font-weight: bold;
   box-shadow: 0 0 30px #ff00aa;
   animation: fadeUp 5s forwards;
+  z-index: 10000;
 }
 
 .modalNope {
@@ -134,341 +253,64 @@ input {
   padding: 20px;
   border-radius: 10px;
   font-weight: bold;
-}
-
-/* ================== ПРОФИЛЬ ================== */
-.profile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
+  z-index: 10000;
   text-align: center;
 }
 
-.avatar {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #ff00aa;
-  box-shadow: 0 0 20px #ff00aa;
+@keyframes fadeUp {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
 }
 
-.editor input {
-  margin: 6px 0;
-  padding: 6px;
+@media (max-width: 900px) {
+  .layout {
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .statsCardWrap {
+    position: static;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .mainContent {
+    width: 100%;
+  }
 }
 
-.editorBtns button {
-  margin: 5px;
-  padding: 6px 10px;
-}
-
-/* ================== КНОПКА РЕДАКТИРОВАНИЯ ================== */
-.editProfileWrapper {
-  position: absolute;
-  top: 20px;
-  right: -60px;
-  transition: right 0.5s ease;
-  z-index: 10;
-}
-
-.editProfileWrapper:hover {
-  right: 20px;
-}
-
-.editProfileBtn {
-  background: linear-gradient(135deg, #ff00aa, #00ffcc);
-  border: none;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  font-size: 24px;
-  color: white;
-  cursor: pointer;
-  box-shadow: 0 0 15px rgba(255, 0, 170, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.25s;
-  opacity: 0.7;
-}
-
-.editProfileWrapper:hover .editProfileBtn {
-  opacity: 1;
-  transform: scale(1.2);
-  box-shadow: 0 0 25px rgba(0, 255, 204, 0.8);
-}
-
-/* ================== ДОСТИЖЕНИЯ ================== */
-.achievementPopup {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: gold;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: bold;
-  animation: fadeUp 3s forwards;
-}
-
-/* ================== ЛОГО ================== */
-.logo {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 48px;
-  font-weight: 800;
-  letter-spacing: 4px;
-  text-align: center;
-  margin-top: 60px;
-  color: #ff00aa;
-  animation: neonPulse 2s infinite alternate;
-}
-
-/* ================== CROP ================== */
-.crop-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: #000000dd;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  z-index: 999;
-}
-
-/* ================== ОТСТУПЫ ================== */
-.buttonsBlock {
-  margin: 20px 0 25px;
-}
-
-/* ================== АДАПТИВ ================== */
 @media (max-width: 768px) {
-  .app {
-    padding: 18px 14px 40px;
-  }
-
   button {
-    margin-top: 10px;
-  }
-}
-
-@media (max-width: 600px) {
-  button {
-    margin: 10px 6px;
-    padding: 14px 18px;
-  }
-}
-
-/* Затемнение фона */
-.cropperOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
-
-/* Окно кропера */
-.cropperModal {
-  background: #0f172a;
-  padding: 30px;
-  border-radius: 20px;
-  box-shadow: 0 0 40px rgba(255, 0, 170, 0.4);
-  max-width: 400px;
-  width: 90%;
-  text-align: center;
-}
-
-
-button:hover {
-  transform: translateY(-3px);
-}
-
-button:active {
-  transform: scale(0.96);
-}
-
-/* ===== MOBILE VERSION ===== */
-@media (max-width: 600px) {
-
-  .app {
-    padding: 20px;
-  }
-
-  .main-content {
-    margin-left: 0 !important;
-  }
-
-  .stats {
-    position: static !important;
-    margin: 20px auto;
     width: 100%;
     max-width: 350px;
   }
 
   .buttons-grid {
-    grid-template-columns: 1fr !important;
-    max-width: 350px;
-  }
-
-}
-
-/* ===== ОСНОВА ===== */
-
-.app {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 40px 20px;
-  box-sizing: border-box;
-}
-
-/* чтобы ничего не вылазило */
-* {
-  box-sizing: border-box;
-}
-
-@media (max-width: 768px) {
-  button {
-    width: 100%;
-    max-width: 350px;
-  }
-}
-
-.buttons-grid{
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  max-width: 600px;
-  margin: 22px auto 0;
-  justify-items: center;
-}
-@media (max-width: 768px){
-  .buttons-grid{
     grid-template-columns: 1fr;
     max-width: 360px;
   }
-  .buttons-grid button{
+
+  .buttons-grid button {
     width: 100%;
     max-width: 360px;
   }
-}
 
-.rating-actions{
-  margin-top: 16px;
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-.rating-actions button{
-  min-width: 220px;
-}
-button.secondary{
-  background: #1e293b;
-  box-shadow: 0 8px 18px rgba(0,0,0,0.25);
-}
-button.secondary:hover{
-  box-shadow: 0 10px 22px rgba(0,0,0,0.35);
-}
+  .profileHeader {
+    flex-direction: column;
+  }
 
-/* ===== МОДАЛКА ВЫХОДА ===== */
-
-.logoutModal {
-  background: #0f172a;
-  padding: 30px;
-  border-radius: 20px;
-  box-shadow: 0 0 40px rgba(255, 0, 170, 0.35);
-  max-width: 400px;
-  width: 90%;
-  text-align: center;
-}
-
-.logoutButtons {
-  display: flex;
-  gap: 14px;
-  justify-content: center;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-
-.logoutYes {
-  background: linear-gradient(135deg, #ff4444, #ff0000);
-}
-
-.logoutNo {
-  background: #1e293b;
-}
-
-.logoutYes:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(255,0,0,0.4);
-}
-
-.logoutNo:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(0,0,0,0.35);
-}
-
-.editPanel{
-  margin: 18px auto 0;
-  padding: 18px;
-  max-width: 520px;
-  background: #111;
-  border-radius: 18px;
-  box-shadow: 0 0 25px rgba(0,0,0,0.35);
-  display: grid;
-  gap: 12px;
-}
-
-.editInput{
-  width: 100%;
-  padding: 12px;
-  border-radius: 12px;
-  border: none;
-  outline: none;
-}
-
-.editActions{
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.editPanel{
-  background: #0f172a;
-  padding: 30px;
-  border-radius: 20px;
-  box-shadow: 0 0 40px rgba(255,0,170,0.4);
-  max-width: 420px;
-  width: 90%;
-  text-align: center;
-
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.editInput{
-  width: 100%;
-  padding: 12px;
-  border-radius: 10px;
-  border: none;
-  font-size: 16px;
-}
-
-.editActions{
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  flex-wrap: wrap;
+  .timerTitle {
+    font-size: 54px;
+  }
 }
