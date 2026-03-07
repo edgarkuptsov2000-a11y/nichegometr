@@ -314,3 +314,243 @@ input {
     font-size: 54px;
   }
 }
+
+/* ===== ПЕРЕКЛЮЧЕНИЕ ВХОД / РЕГИСТРАЦИЯ ===== */
+
+.switchAuthButton{
+  margin-top: 18px;
+  padding: 12px 18px;
+
+  border-radius: 12px;
+
+  background: rgba(255,255,255,0.06);
+
+  border: 1px solid rgba(255,255,255,0.15);
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  display: inline-block;
+
+  transition: all 0.25s ease;
+
+  backdrop-filter: blur(6px);
+}
+
+.switchAuthButton:hover{
+  background: rgba(255,255,255,0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+}
+
+.switchAuthButton{
+
+margin-top:12px;
+
+padding:12px 18px;
+
+border-radius:12px;
+
+background:rgba(255,255,255,0.05);
+
+border:1px solid rgba(255,255,255,0.2);
+
+font-size:14px;
+
+cursor:pointer;
+
+transition:all .25s ease;
+
+}
+
+.switchAuthButton:hover{
+
+background:rgba(255,255,255,0.12);
+
+transform:translateY(-2px);
+
+}
+
+.authButtonsColumn{
+  margin-top:16px;
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+
+  gap:10px;
+}
+
+/* большая кнопка */
+
+.authMainButton{
+  width:260px;
+}
+
+/* маленькая кнопка */
+
+.switchAuthButton{
+
+  height:42px;
+
+  padding:0 16px;
+
+  border-radius:12px;
+
+  background:rgba(255,255,255,0.06);
+
+  border:1px solid rgba(255,255,255,0.18);
+
+  font-size:14px;
+  font-weight:600;
+
+  cursor:pointer;
+
+  transition:all .25s ease;
+
+}
+
+.switchAuthButton:hover{
+
+  background:rgba(255,255,255,0.12);
+
+  transform:translateY(-1px);
+
+}
+
+.switchAuthButton{
+  opacity:0.85;
+}
+
+.switchAuthButton:hover{
+  opacity:1;
+}
+
+.authPage{
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.authCard{
+  width: 100%;
+  max-width: 460px;
+  padding: 36px 28px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+  text-align: center;
+}
+
+.authTitle{
+  font-family: "Alterna", sans-serif;
+
+  font-size: 56px;
+
+  letter-spacing: 2px;
+
+  color: white;
+
+  margin-bottom: 24px;
+}
+
+.authPage{
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.authCard{
+  width: 100%;
+  max-width: 460px;
+  padding: 36px 28px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+  text-align: center;
+}
+
+.authTitle{
+  margin-top: 0;
+  margin-bottom: 24px;
+  font-size: 56px;
+  line-height: 1;
+}
+
+.authMainButton{
+  width: 280px;
+}
+
+.switchAuthButton{
+  min-width: 220px;
+  max-width: 280px;
+}
+
+.authError{
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 80, 80, 0.12);
+  border: 1px solid rgba(255, 80, 80, 0.25);
+  color: #ff9b9b;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+button{
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+@font-face {
+  font-family: "Alterna";
+  src: url("./fonts/a_AlternaSw.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+h1 {
+  font-family: "Alterna", sans-serif;
+}
+
+.logoAnimated{
+  font-family: "Alterna", sans-serif;
+  color: #ff00aa;
+  letter-spacing: 2px;
+  text-shadow:
+    0 0 8px rgba(255, 0, 170, 0.7),
+    0 0 18px rgba(255, 0, 170, 0.55),
+    0 0 36px rgba(255, 0, 170, 0.35);
+  animation: logoFloat 3s ease-in-out infinite, logoGlow 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes logoFloat{
+  0%{ transform: translateY(0); }
+  50%{ transform: translateY(-4px); }
+  100%{ transform: translateY(0); }
+}
+
+@keyframes logoGlow{
+  0%{
+    text-shadow:
+      0 0 8px rgba(255, 0, 170, 0.55),
+      0 0 18px rgba(255, 0, 170, 0.4),
+      0 0 30px rgba(255, 0, 170, 0.25);
+  }
+  100%{
+    text-shadow:
+      0 0 12px rgba(255, 0, 170, 0.95),
+      0 0 24px rgba(255, 0, 170, 0.7),
+      0 0 48px rgba(255, 0, 170, 0.45);
+  }
+}
+

@@ -24,6 +24,7 @@ function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [authChecked, setAuthChecked] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [firstSetup, setFirstSetup] = useState(false);
@@ -250,56 +251,82 @@ function App() {
     };
   };
 
-  const loadProfileFromSession = async (session) => {
-    if (!session?.user) {
-      setUser(null);
-      return;
-    }
+useEffect(() => {
+  let isMounted = true;
 
-    const profile = await getOrCreateProfile(session.user.id, session.user.email);
-    setUser(profile);
-    setFirstSetup(!profile.nick);
-    refreshPeriodStatsIfNeeded(profile.id);
+  const initAuth = async () => {
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error) throw error;
+
+      if (session?.user && isMounted) {
+        const profile = await getOrCreateProfile(
+          session.user.id,
+          session.user.email
+        );
+
+        if (!isMounted) return;
+
+        setUser(profile);
+        setFirstSetup(!profile.nick);
+        refreshPeriodStatsIfNeeded(profile.id);
+      }
+    } catch (err) {
+      console.log("SESSION LOAD ERROR", err);
+    } finally {
+      if (isMounted) setAuthChecked(true);
+    }
   };
 
-  useEffect(() => {
-    let mounted = true;
+  initAuth();
 
-    const initAuth = async () => {
-      try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    try {
+      if (!isMounted) return;
 
-        if (error) throw error;
-        if (!mounted) return;
-
-        await loadProfileFromSession(session);
-      } catch (err) {
-        console.error("SESSION LOAD ERROR", err);
+      if (!session?.user) {
+        setUser(null);
+        setFirstSetup(false);
+        setAuthChecked(true);
+        return;
       }
-    };
 
-    initAuth();
+      const profile = await getOrCreateProfile(
+        session.user.id,
+        session.user.email
+      );
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return;
+      if (!isMounted) return;
 
-      try {
-        await loadProfileFromSession(session);
-      } catch (err) {
-        console.error("AUTH LISTENER ERROR", err);
-      }
-    });
+      setUser(profile);
+      setFirstSetup(!profile.nick);
+      refreshPeriodStatsIfNeeded(profile.id);
+      setAuthChecked(true);
+    } catch (err) {
+      console.log("AUTH LISTENER ERROR", err);
+      if (isMounted) setAuthChecked(true);
+    }
+  });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
+  return () => {
+    isMounted = false;
+    subscription.unsubscribe();
+  };
+}, []);
+
+useEffect(() => {
+  const timeout = setTimeout(() => {
+    setAuthChecked(true);
+  }, 3000);
+
+  return () => clearTimeout(timeout);
+}, []);
 
   useEffect(() => {
     if (start) {
@@ -399,37 +426,44 @@ function App() {
     }
   };
 
-  const loginWithEmail = async () => {
-    setAuthError("");
+const loginWithEmail = async () => {
+  setAuthError("");
 
-    if (!email || !password) {
-      setAuthError("Введите email и пароль");
-      return;
+  if (!email || !password) {
+    setAuthError("Введите email и пароль");
+    return;
+  }
+
+  setAuthLoading(true);
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    if (error) throw error;
+
+    const session = data?.session;
+    if (!session?.user) {
+      throw new Error("Не удалось получить сессию после входа");
     }
 
-    setAuthLoading(true);
+    const profile = await getOrCreateProfile(
+      session.user.id,
+      session.user.email
+    );
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) throw error;
-
-      const session = data?.session;
-      if (!session) {
-        throw new Error("Не удалось получить сессию после входа");
-      }
-
-      await loadProfileFromSession(session);
-    } catch (e) {
-      console.error("LOGIN ERROR", e);
-      setAuthError(e?.message || "Ошибка входа");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
+    setUser(profile);
+    setFirstSetup(!profile.nick);
+    refreshPeriodStatsIfNeeded(profile.id);
+  } catch (e) {
+    console.error("LOGIN ERROR", e);
+    setAuthError(e?.message || "Ошибка входа");
+  } finally {
+    setAuthLoading(false);
+  }
+};
 
   const handleAuthSubmit = async () => {
     if (authLoading) return;
@@ -578,22 +612,21 @@ function App() {
     }
   };
 
-  const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-      localStorage.removeItem("timerStart");
-      localStorage.removeItem("timerRunning");
-      setUser(null);
-      setStart(null);
-      setTime(0);
-      setIsRunning(false);
-      setEditing(false);
-      setShowLogoutConfirm(false);
-    } catch (err) {
-      console.error(err);
-      alert("Не удалось выйти из аккаунта");
-    }
-  };
+const logout = async () => {
+  try {
+    await supabase.auth.signOut();
+    localStorage.removeItem("timerStart");
+    localStorage.removeItem("timerRunning");
+    setUser(null);
+    setStart(null);
+    setTime(0);
+    setEditing(false);
+    setFirstSetup(false);
+  } catch (err) {
+    console.error(err);
+    alert("Не удалось выйти из аккаунта");
+  }
+};
 
   useEffect(() => {
     if (!user || !start || !isRunning) return;
@@ -622,6 +655,15 @@ function App() {
   useEffect(() => {
     fetchGlobalRating();
   }, [ratingLimit]);
+
+if (!authChecked) {
+  return (
+    <div style={{ textAlign: "center", marginTop: 100 }}>
+      <h1>Ничегометр</h1>
+      <p>Загрузка...</p>
+    </div>
+  );
+}
 
   if (user && firstSetup) {
     return (
@@ -658,54 +700,62 @@ function App() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="authPage">
-        <h1>Ничегометр</h1>
+if (!user) return (
+  <div className="authPage">
+    <div className="authCard">
+      <h1 className="authTitle">Ничегометр</h1>
 
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-        />
-        <br />
+      <input
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        autoComplete="email"
+      />
+      <br />
 
-        <input
-          type="password"
-          placeholder="Пароль"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete={isLogin ? "current-password" : "new-password"}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleAuthSubmit();
-          }}
-        />
-        <br />
+      <input
+        type="password"
+        placeholder="Пароль"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        autoComplete={isLogin ? "current-password" : "new-password"}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleAuthSubmit();
+        }}
+      />
+      <br />
 
+      <div className="authButtonsColumn">
         <button
           type="button"
           onClick={handleAuthSubmit}
           disabled={authLoading}
+          className="authMainButton"
           style={{ opacity: authLoading ? 0.7 : 1 }}
         >
-          {authLoading ? "Входим..." : isLogin ? "Войти" : "Зарегистрироваться"}
+          {authLoading ? "Загрузка..." : (isLogin ? "Войти" : "Зарегистрироваться")}
         </button>
 
-        {authError && <div className="authError">{authError}</div>}
-
-        <p
-          className="switchAuth"
+        <button
+          type="button"
+          className="switchAuthButton"
           onClick={() => {
             setAuthError("");
             setIsLogin(!isLogin);
           }}
         >
-          {isLogin ? "Создать новый аккаунт" : "Уже есть аккаунт? Войти"}
-        </p>
+          {isLogin ? "Создать новый аккаунт" : "Уже есть аккаунт?"}
+        </button>
       </div>
-    );
-  }
+
+      {authError && (
+        <div className="authError">
+          {authError}
+        </div>
+      )}
+    </div>
+  </div>
+);
 
   return (
     <div className="pageWrap">
@@ -959,7 +1009,7 @@ function App() {
         </div>
       </div>
     </div>
-  );
+  );  
 }
 
 export default App;
