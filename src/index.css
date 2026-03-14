@@ -449,7 +449,7 @@ transform:translateY(-2px);
 }
 
 .authTitle{
-  font-family: "Alterna", sans-serif;
+  font-family: "a_AlternaSw", sans-serif;
 
   font-size: 56px;
 
@@ -519,11 +519,11 @@ button{
 }
 
 h1 {
-  font-family: "Alterna", sans-serif;
+  font-family: "a_AlternaSw", sans-serif;
 }
 
 .logoAnimated{
-  font-family: "Alterna", sans-serif;
+  font-family: "a_AlternaSw", sans-serif;
   color: #ff00aa;
   letter-spacing: 2px;
   text-shadow:

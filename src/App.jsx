@@ -8,6 +8,15 @@ function App() {
   const [user, setUser] = useState(null);
   const [globalSorted, setGlobalSorted] = useState([]);
 
+  const getCachedUser = () => {
+  try {
+    const raw = localStorage.getItem("nichegoUser");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
   const [time, setTime] = useState(0);
   const [start, setStart] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -25,6 +34,7 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authChecked, setAuthChecked] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [firstSetup, setFirstSetup] = useState(false);
@@ -254,31 +264,64 @@ function App() {
 useEffect(() => {
   let isMounted = true;
 
+  const cachedUser = getCachedUser();
+
+  // Сразу восстанавливаем UI после refresh
+  if (cachedUser) {
+    setUser(cachedUser);
+    setFirstSetup(!cachedUser.nick);
+    refreshPeriodStatsIfNeeded(cachedUser.id);
+  }
+
+  const applyLoggedOutState = () => {
+    if (!isMounted) return;
+
+    localStorage.removeItem("nichegoUser");
+    setUser(null);
+    setFirstSetup(false);
+    setAuthChecked(true);
+  };
+
+  const applyLoggedInState = async (sessionUser) => {
+    try {
+      const profile = await getOrCreateProfile(sessionUser.id, sessionUser.email);
+
+      if (!isMounted) return;
+
+      setUser(profile);
+      setFirstSetup(!profile.nick);
+      refreshPeriodStatsIfNeeded(profile.id);
+      localStorage.setItem("nichegoUser", JSON.stringify(profile));
+      setAuthChecked(true);
+    } catch (err) {
+      console.error("PROFILE LOAD ERROR", err);
+      if (isMounted) {
+        setAuthChecked(true);
+      }
+    }
+  };
+
   const initAuth = async () => {
     try {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
-
+      const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
 
-      if (session?.user && isMounted) {
-        const profile = await getOrCreateProfile(
-          session.user.id,
-          session.user.email
-        );
+      const session = data?.session;
 
-        if (!isMounted) return;
+      if (!isMounted) return;
 
-        setUser(profile);
-        setFirstSetup(!profile.nick);
-        refreshPeriodStatsIfNeeded(profile.id);
+      if (session?.user) {
+        await applyLoggedInState(session.user);
+      } else {
+        applyLoggedOutState();
       }
     } catch (err) {
-      console.log("SESSION LOAD ERROR", err);
-    } finally {
-      if (isMounted) setAuthChecked(true);
+      console.error("SESSION LOAD ERROR", err);
+
+      // Не зависаем на бесконечной загрузке
+      if (isMounted) {
+        setAuthChecked(true);
+      }
     }
   };
 
@@ -287,30 +330,12 @@ useEffect(() => {
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    try {
-      if (!isMounted) return;
+    if (!isMounted) return;
 
-      if (!session?.user) {
-        setUser(null);
-        setFirstSetup(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      const profile = await getOrCreateProfile(
-        session.user.id,
-        session.user.email
-      );
-
-      if (!isMounted) return;
-
-      setUser(profile);
-      setFirstSetup(!profile.nick);
-      refreshPeriodStatsIfNeeded(profile.id);
-      setAuthChecked(true);
-    } catch (err) {
-      console.log("AUTH LISTENER ERROR", err);
-      if (isMounted) setAuthChecked(true);
+    if (session?.user) {
+      await applyLoggedInState(session.user);
+    } else {
+      applyLoggedOutState();
     }
   });
 
@@ -318,14 +343,6 @@ useEffect(() => {
     isMounted = false;
     subscription.unsubscribe();
   };
-}, []);
-
-useEffect(() => {
-  const timeout = setTimeout(() => {
-    setAuthChecked(true);
-  }, 3000);
-
-  return () => clearTimeout(timeout);
 }, []);
 
   useEffect(() => {
@@ -437,26 +454,15 @@ const loginWithEmail = async () => {
   setAuthLoading(true);
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
 
     if (error) throw error;
 
-    const session = data?.session;
-    if (!session?.user) {
-      throw new Error("Не удалось получить сессию после входа");
-    }
-
-    const profile = await getOrCreateProfile(
-      session.user.id,
-      session.user.email
-    );
-
-    setUser(profile);
-    setFirstSetup(!profile.nick);
-    refreshPeriodStatsIfNeeded(profile.id);
+    // Ничего больше тут не делаем.
+    // user / profile / localStorage подхватятся через onAuthStateChange
   } catch (e) {
     console.error("LOGIN ERROR", e);
     setAuthError(e?.message || "Ошибка входа");
@@ -599,6 +605,7 @@ const loginWithEmail = async () => {
       if (error) throw error;
 
       setUser(data);
+      localStorage.setItem("nichegoUser", JSON.stringify(data));
       setNewNick("");
       setNewAvatar(null);
       setEditing(false);
@@ -614,18 +621,34 @@ const loginWithEmail = async () => {
 
 const logout = async () => {
   try {
-    await supabase.auth.signOut();
+    setShowLogoutConfirm(false);
+
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  } catch (err) {
+    console.error("LOGOUT ERROR", err);
+  } finally {
     localStorage.removeItem("timerStart");
     localStorage.removeItem("timerRunning");
+    localStorage.removeItem("nichegoUser");
+
     setUser(null);
+    setGlobalSorted([]);
     setStart(null);
     setTime(0);
+    setIsRunning(false);
     setEditing(false);
     setFirstSetup(false);
-  } catch (err) {
-    console.error(err);
-    alert("Не удалось выйти из аккаунта");
+    setAuthError("");
+    setAuthChecked(true);
   }
+};
+const openLogoutConfirm = () => {
+  setShowLogoutConfirm(true);
+};
+
+const confirmLogout = async () => {
+  await logout();
 };
 
   useEffect(() => {
@@ -640,23 +663,32 @@ const logout = async () => {
     return () => clearTimeout(interval);
   }, [user, start, isRunning]);
 
-  const fetchGlobalRating = async () => {
+const fetchGlobalRating = async () => {
+  try {
     const { data, error } = await supabase
       .from("users")
-      .select("*")
+      .select("id, nick, total")
       .order("total", { ascending: false })
       .limit(ratingLimit);
 
-    if (!error && data) {
-      setGlobalSorted(data);
-    }
-  };
+    if (error) throw error;
 
-  useEffect(() => {
-    fetchGlobalRating();
-  }, [ratingLimit]);
+    setGlobalSorted(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error("RATING ERROR", err);
+  }
+};
 
-if (!authChecked) {
+useEffect(() => {
+  fetchGlobalRating();
+}, [ratingLimit]);
+
+useEffect(() => {
+  if (!user?.id) return;
+  fetchGlobalRating();
+}, [user?.id]);
+
+if (!authChecked && !user) {
   return (
     <div style={{ textAlign: "center", marginTop: 100 }}>
       <h1>Ничегометр</h1>
@@ -868,9 +900,9 @@ if (!user) return (
                   ⚙️ Редактировать
                 </button>
 
-                <button type="button" onClick={() => setShowLogoutConfirm(true)}>
-                  Выйти
-                </button>
+                <button type="button" onClick={openLogoutConfirm}>
+  Выйти
+</button>
               </div>
             </div>
           </div>
@@ -992,9 +1024,9 @@ if (!user) return (
                 <h2 style={{ marginTop: 0 }}>Ты точно хочешь выйти?</h2>
 
                 <div className="modalButtonsRow">
-                  <button type="button" onClick={logout}>
-                    Да
-                  </button>
+                  <button type="button" onClick={confirmLogout}>
+  Да
+</button>
                   <button
                     type="button"
                     className="secondary"
